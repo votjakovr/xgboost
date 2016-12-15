@@ -93,19 +93,6 @@ class XGBoostEstimator private[spark](
 
   fromXGBParamMapToParams()
 
-  // only called when XGBParamMap is empty, i.e. in the constructor this(String)
-  // TODO: refactor to be functional
-  private def fromParamsToXGBParamMap(): Map[String, Any] = {
-    require(xgboostParams.isEmpty, "fromParamsToXGBParamMap can only be called when" +
-      " XGBParamMap is empty, i.e. in the constructor this(String)")
-    val xgbParamMap = new mutable.HashMap[String, Any]()
-    for (param <- params) {
-      xgbParamMap += param.name -> $(param)
-    }
-    xgboostParams = xgbParamMap.toMap
-    xgbParamMap.toMap
-  }
-
   /**
    * produce a XGBoostModel by fitting the given dataset
    */
@@ -132,12 +119,23 @@ class XGBoostEstimator private[spark](
     returnedModel
   }
 
+  private def updateXGBParamMap(oldParametersMap: Map[String, Any],
+                                newParamMap: ParamMap): Map[String, Any] = {
+    val newParameters = new mutable.HashMap[String, Any]()
+
+    oldParametersMap.foreach(item => newParameters.put(item._1, item._2))
+    newParamMap.toSeq.foreach(parameter => newParameters.put(parameter.param.name, parameter.value))
+
+    xgboostParams = newParameters.toMap
+    newParameters.toMap
+  }
+
   override def copy(extra: ParamMap): XGBoostEstimator = {
     val est = defaultCopy(extra).asInstanceOf[XGBoostEstimator]
     // we need to synchronize the params here instead of in the constructor
     // because we cannot guarantee that params (default implementation) is initialized fully
     // before the other params
-    est.fromParamsToXGBParamMap()
+    est.updateXGBParamMap(this.xgboostParams, extra)
     est
   }
 }
